@@ -1,0 +1,17 @@
+ipython
+isort
+jupyterlab
+loguru
+matplotlib
+mkdocs
+notebook
+numpy
+opencv-python
+pandas
+pip
+ruff
+scikit-learn
+tensorboardX
+tqdm
+typer
+-e .

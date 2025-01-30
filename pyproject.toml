@@ -1,0 +1,30 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "xfeats_dyn"
+version = "0.0.1"
+description = "A short description of the project."
+authors = [{ name = "Mirco Colosi (CR/AAS3)" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+]
+requires-python = "~=3.10"
+
+[tool.ruff]
+line-length = 120
+exclude = ['.git', '.venv']
+respect-gitignore = true
+
+[tool.ruff.lint]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
