@@ -31,6 +31,12 @@ def main(
     compile: bool = False,
 ):
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else None
+
+    try:
+        torch.set_float32_matmul_precision("medium")
+    except AttributeError:
+        logger.warning("torch.set_float32_matmul_precision is not available in this version of PyTorch.")
+
     if device is None:
         logger.error("No CUDA device found.")
         raise typer.Abort()
@@ -50,6 +56,7 @@ def main(
         logger.error(f"Invalid loss function: {loss_function}")
         raise typer.Abort()
 
+    lr_scheduler_name = "plateau"
     logger.info(f"Training model {MODEL_NAME} with loss {loss_function}...")
     latest_checkpoint = checkpoint
     if checkpoint is not None:
@@ -63,7 +70,9 @@ def main(
             model = XFeatsDynModule(loss=loss_function)
 
         else:
-            model = XFeatsDynModule(learning_rate=learning_rate, loss=loss_function)
+            model = XFeatsDynModule(
+                learning_rate=learning_rate, loss=loss_function, lr_scheduler_name=lr_scheduler_name
+            )
 
     if compile:
         model.compile()
@@ -72,7 +81,7 @@ def main(
     early_stopping_cb = EarlyStopping(
         monitor=loss_name,
         min_delta=0.0,
-        patience=10,
+        patience=15,
         mode="min",
         verbose=False,
         strict=True,

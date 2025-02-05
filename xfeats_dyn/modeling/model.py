@@ -60,7 +60,7 @@ class XFeatsDynModule(LightningModule):
         detection_threshold=0.05,
         per_pixel_weight=1e3,
         loss=None,
-        use_lr_scheduler=True,
+        lr_scheduler_name=None,
     ):
         super().__init__()
         self.top_k = top_k
@@ -79,7 +79,7 @@ class XFeatsDynModule(LightningModule):
             param.requires_grad = False
         self.xfeats_freeze.eval()
 
-        self.use_lr_scheduler = use_lr_scheduler
+        self.lr_scheduler_name = lr_scheduler_name
 
         self.learning_rate = learning_rate
 
@@ -92,11 +92,11 @@ class XFeatsDynModule(LightningModule):
         self.interpolator = InterpolateSparse2d("bicubic")
         self.save_hyperparameters()
 
-    def _stash_log(self, loss):
+    def _stash_log(self, loss, on_step=True):
         if isinstance(loss, dict):
             self.log_dict(
                 loss,
-                on_step=True,
+                on_step=on_step,
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
@@ -105,7 +105,7 @@ class XFeatsDynModule(LightningModule):
             self.log(
                 f"{self.step}_loss",
                 loss,
-                on_step=True,
+                on_step=on_step,
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
@@ -122,7 +122,7 @@ class XFeatsDynModule(LightningModule):
         # plt.axis("off")
         # plt.show()
 
-        self.tb_logger.experiment.add_image(f"imgs_{self.step}", grid, global_step=self.current_epoch)
+        self.tb_logger.experiment.add_image(f"{self.step}_imgs", grid, global_step=self.current_epoch)
 
     def _common_train_val_step(self, batch, batch_idx):
         images, labels = batch
@@ -163,10 +163,13 @@ class XFeatsDynModule(LightningModule):
             weights = (1 - segmented_mask) * self.per_pixel_weight  # + 1
             loss1 = self.loss(rel_map, target_rel_map, weights)
             loss2 = nn.MSELoss()(rel_map, target_rel_map)
-            loss_dict = {
-                f"{self.step}_ppw_loss": loss1,
-                f"{self.step}_mse_loss": loss2,
-            }
+            self._stash_log(
+                {
+                    f"{self.step}_ppw_loss": loss1,
+                    f"{self.step}_mse_loss": loss2,
+                },
+                False,
+            )
             loss = loss1 + 10 * loss2
         else:
             loss = self.loss(rel_map, target_rel_map)
@@ -198,8 +201,18 @@ class XFeatsDynModule(LightningModule):
         optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)
         res = {"optimizer": optimizer}
 
-        if self.use_lr_scheduler:
-            res.update({"lr_scheduler": optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=0.001)})
+        if self.lr_scheduler_name == "cosine":
+            res.update({"lr_scheduler": optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30, eta_min=0.001)})
+        elif self.lr_scheduler_name == "plateau":
+            res.update(
+                {
+                    "lr_scheduler": {
+                        "scheduler": optim.lr_scheduler.ReduceLROnPlateau(optimizer),
+                        "monitor": "val_loss",
+                    }
+                }
+            )
+
         return res
 
     # We should segment the things, then if the heatmap is high on top of segment, we should lower it
